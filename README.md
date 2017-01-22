@@ -18,48 +18,25 @@ A pattern looks like:
 `{ from: 'source', to: 'dest' }`
 
 #### Pattern properties:
-* `from`
-    - is required
-    - can be an absolute or path relative to the context
-    - can be a file or directory
-    - can be a glob
-* `to`
-    - is optional
-    - if not absolute, it's relative to the build root
-    - must be a directory if `from` is a directory
-* `toType`
-    - is optional
-    - is ignored if `from` is a directory
-    - defaults to `'file'` if `to` has an extension
-    - defaults to `'dir'` if `to` doesn't have an extension
-* `force`
-    - is optional
-    - defaults to `false`
-    - forces the plugin to overwrite files staged by previous plugins
-* `context`
-    - is optional
-    - defaults to the base context
-    - is a pattern specific context
-* `flatten`
-    - is optional
-    - defaults to `false`
-    - removes all directory references and only copies file names
-    - if files have the same name, the result is non-deterministic
-* `ignore`
-    - additional globs to ignore for this pattern
+
+| Name | Required | Default     | Details                                                 |
+|------|----------|------------ |---------------------------------------------------------|
+| `from` | Y        |             | _examples:_<br>'relative/file.txt'<br>'/absolute/file.txt'<br>'relative/dir'<br>'/absolute/dir'<br>'\*\*/\*'<br>{glob:'\*\*/\*', dot: true}<br><br>Globs accept [minimatch options](https://github.com/isaacs/minimatch) |
+| `to`   | N        | output root if `from` is file or dir<br><br>resolved glob path if `from` is glob | _examples:_<br>'relative/file.txt'<br>'/absolute/file.txt'<br>'relative/dir'<br>'/absolute/dir'<br>'relative/[name].[ext]'<br>'/absolute/[name].[ext]'<br><br>Templates are [file-loader patterns](https://github.com/webpack/file-loader) |
+| `toType` | N | **'file'** if `to` has extension or `from` is file<br><br>**'dir'** if `from` is directory, `to` has no extension or ends in '/'<br><br>**'template'** if `to` contains [a template pattern](https://github.com/webpack/file-loader) | |
+| `context` | N | compiler.options.context | A path that determines how to interpret the `from` path |
+| `flatten` | N | false | Removes all directory references and only copies file names<br><br>If files have the same name, the result is non-deterministic |
+| `ignore` | N | [] | Additional globs to ignore for this pattern |
+| `transform` | N | function(content, path) {<br>&nbsp;&nbsp;return content;<br>} | Function that modifies file contents before writing to webpack |
+| `force` | N | false | Overwrites files already in compilation.assets (usually added by other plugins) |
 
 #### Available options:
-* `ignore`
-    - an array of files and directories to ignore
-    - accepts globs
-    - globs are evaluated on the `from` path, relative to the context
-* `copyUnmodified`
-    - is optional
-    - defaults to `false` (only copies modified files)
-    - `true` copies all files while using watch or webpack-dev-server
-* `namePattern`
-    - example: `"[name]-[contenthash:6].js"` or `"[name].[contenthash:6].js"`
-    - you put content hash before name like this `"[contenthash:6]-[name].js"`
+
+| Name | Default | Details |
+| ---- | ------- | ------- |
+| `ignore` | [] | Array of globs to ignore (applied to `from`) |
+| `copyUnmodified` | false | Copies files, regardless of modification when using watch or webpack-dev-server. All files are copied on first build, regardless of this option. |
+| `debug` | **'warning'** | _options:_<br>**'warning'** - only warnings<br>**'info'** or true - file location and read info<br>**'debug'** - very detailed debugging info
 
 ### Examples
 
@@ -70,8 +47,9 @@ var path = require('path');
 module.exports = {
     context: path.join(__dirname, 'app'),
     devServer: {
-        // This is required for webpack-dev-server if using a version <3.0.0.
-        // The path should be an absolute path to your build destination.
+        // This is required for older versions of webpack-dev-server
+        // if you use absolute 'to' paths. The path should be an
+        // absolute path to your build destination.
         outputPath: path.join(__dirname, 'build')
     },
     plugins: [
@@ -129,7 +107,10 @@ module.exports = {
                 '*.txt',
                 
                 // Doesn't copy any file, even if they start with a dot
-                { glob: '**/*', dot: true }
+                '**/*',
+
+                // Doesn't copy any file, except if they start with a dot
+                { glob: '**/*', dot: false }
             ],
 
             // By default, we only copy modified files during
@@ -140,9 +121,6 @@ module.exports = {
     ]
 };
 ```
-
-### Maybe a temp repo
-This maybe a temporary repository. Once ```copy-webpack-plugin``` merge my pull request, please stick to the origin repo.
 
 ### Testing
 
@@ -165,6 +143,14 @@ At the top of your webpack config, insert this
     gracefulFs.gracefulify(fs);
 
 See [this issue](https://github.com/kevlened/copy-webpack-plugin/issues/59#issuecomment-228563990) for more details
+
+#### This doesn't copy my files with webpack-dev-server
+
+Starting in version [3.0.0](https://github.com/kevlened/copy-webpack-plugin/blob/master/CHANGELOG.md#300-may-14-2016), we stopped using fs to copy files to the filesystem and started depending on webpack's [in-memory filesystem](https://webpack.github.io/docs/webpack-dev-server.html#content-base):
+
+> ... webpack-dev-server will serve the static files in your build folder. It’ll watch your source files for changes and when changes are made the bundle will be recompiled. **This modified bundle is served from memory at the relative path specified in publicPath (see API)**. It will not be written to your configured output directory.
+
+If you must have webpack-dev-server write to your output directory, you can force it with the [write-file-webpack-plugin](https://github.com/gajus/write-file-webpack-plugin).
 
 ### License
 

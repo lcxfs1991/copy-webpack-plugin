@@ -1,6 +1,6 @@
 {
   "name": "copy-webpack-plugin-hash",
-  "version": "3.0.2",
+  "version": "4.0.1",
   "description": "Copy files and directories in webpack",
   "main": "dist/index.js",
   "repository": {
@@ -21,6 +21,8 @@
     "bluebird": "^2.10.2",
     "fs-extra": "^0.26.4",
     "glob": "^6.0.4",
+    "is-glob": "^3.1.0",
+    "loader-utils": "^0.2.15",
     "lodash": "^4.3.0",
     "minimatch": "^3.0.0",
     "node-dir": "^0.1.10",
@@ -30,6 +32,7 @@
     "lint": "eslint src/ tests/",
     "pretest": "npm run lint && npm run build && npm run build:tests",
     "test": "mocha compiled_tests/",
+    "test:nolint": "npm run build && npm run build:tests && mocha compiled_tests/",
     "build": "babel src/ --out-dir dist/",
     "build:tests": "babel tests/ --out-dir compiled_tests/ && ncp tests/helpers compiled_tests/helpers"
   },

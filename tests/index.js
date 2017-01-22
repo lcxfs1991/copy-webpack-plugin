@@ -16,13 +16,17 @@ const HELPER_DIR = path.join(__dirname, 'helpers');
 const TEMP_DIR = path.join(__dirname, 'tempdir');
 
 class MockCompiler {
-    constructor () {
+    constructor (options = {}) {
         this.options = {
             context: HELPER_DIR,
             output: {
-                path: BUILD_DIR
+                path: options.outputPath || BUILD_DIR
             }
         };
+
+        if (options.devServer && options.devServer.outputPath) {
+            _.set(this.options, 'devServer.outputPath', options.devServer.outputPath);
+        }
 
         this.outputFileSystem = {
             constructor: {
@@ -75,7 +79,9 @@ describe('apply function', () => {
                 });
             })
             .then(() => {
-                if (compilation.errors.length > 0) {
+                if (opts.expectedErrors) {
+                    expect(compilation.errors).to.deep.equal(opts.expectedErrors);
+                } else if (compilation.errors.length > 0) {
                     throw compilation.errors[0];
                 }
                 resolve(compilation);
@@ -92,6 +98,17 @@ describe('apply function', () => {
                 } else {
                     expect(compilation.assets).to.deep.equal({});
                 }
+
+                if (opts.expectedAssetContent) {
+                    for (var key in opts.expectedAssetContent) {
+                        expect(compilation.assets[key]).to.exist;
+                        if (compilation.assets[key]) {
+                            let expectedContent = opts.expectedAssetContent[key];
+                            let compiledContent = compilation.assets[key].source().toString();
+                            expect(compiledContent).to.equal(expectedContent);
+                        }
+                    }
+                }
             });
     };
 
@@ -105,12 +122,7 @@ describe('apply function', () => {
             }
         };
 
-        return run(opts)
-            .then((compilation) => {
-                const assetContent = compilation.assets[opts.existingAsset].source().toString();
-
-                expect(assetContent).to.equal(opts.expectedAssetContent);
-            });
+        return run(opts).then(() => {});
     };
 
     const runChange = (opts) => {
@@ -160,9 +172,7 @@ describe('apply function', () => {
         it('doesn\'t throw an error if no patterns are passed', (done) => {
             runEmit({
                 expectedAssetKeys: [],
-                /* eslint-disable no-undefined */
-                patterns: undefined
-                /* eslint-enable */
+                patterns: undefined // eslint-disable-line no-undefined
             })
             .then(done)
             .catch(done);
@@ -185,35 +195,7 @@ describe('apply function', () => {
         });
     });
 
-    describe('with file in from', () => {
-        it('can move a file to the root directory', (done) => {
-            runEmit({
-                expectedAssetKeys: [
-                    'file.txt'
-                ],
-                patterns: [{
-                    from: 'file.txt'
-                }]
-            })
-            .then(done)
-            .catch(done);
-        });
-
-        it('can use an absolute path to move a file to the root directory', (done) => {
-            const absolutePath = path.resolve(HELPER_DIR, 'file.txt');
-
-            runEmit({
-                expectedAssetKeys: [
-                    'file.txt'
-                ],
-                patterns: [{
-                    from: absolutePath
-                }]
-            })
-            .then(done)
-            .catch(done);
-        });
-
+    describe('with glob in from', () => {
         it('can use a glob to move a file to the root directory', (done) => {
             runEmit({
                 expectedAssetKeys: [
@@ -227,12 +209,45 @@ describe('apply function', () => {
             .catch(done);
         });
 
+        it('can use a bracketed glob to move a file to the root directory', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directory/directoryfile.txt',
+                    'directory/nested/nestedfile.txt',
+                    'file.txt',
+                    'noextension'
+                ],
+                patterns: [{
+                    from: '{file.txt,noextension,directory/**/*}'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can use a glob object to move a file to the root directory', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'file.txt'
+                ],
+                patterns: [{
+                    from: {
+                        glob: '*.txt'
+                    }
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
         it('can use a glob to move multiple files to the root directory', (done) => {
             runEmit({
                 expectedAssetKeys: [
+                    'binextension.bin',
                     'file.txt',
                     'directory/directoryfile.txt',
-                    'directory/nested/nestedfile.txt'
+                    'directory/nested/nestedfile.txt',
+                    'noextension'
                 ],
                 patterns: [{
                     from: '**/*'
@@ -245,9 +260,11 @@ describe('apply function', () => {
         it('can use a glob to move multiple files to a non-root directory', (done) => {
             runEmit({
                 expectedAssetKeys: [
+                    'nested/binextension.bin',
                     'nested/file.txt',
                     'nested/directory/directoryfile.txt',
-                    'nested/directory/nested/nestedfile.txt'
+                    'nested/directory/nested/nestedfile.txt',
+                    'nested/noextension'
                 ],
                 patterns: [{
                     from: '**/*',
@@ -335,6 +352,105 @@ describe('apply function', () => {
             .catch(done);
         });
 
+        it('can use a glob to move multiple files to a non-root directory with name, hash and ext', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'nested/binextension-d41d8c.bin',
+                    'nested/file-22af64.txt',
+                    'nested/directory/directoryfile-22af64.txt',
+                    'nested/directory/nested/nestedfile-d41d8c.txt',
+                    'nested/noextension-d41d8c'
+                ],
+                patterns: [{
+                    from: '**/*',
+                    to: 'nested/[path][name]-[hash:6].[ext]'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+    });
+
+    describe('with file in from', () => {
+        it('can move a file to the root directory', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'file.txt'
+                ],
+                patterns: [{
+                    from: 'file.txt'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can transform a file', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'file.txt'
+                ],
+                expectedAssetContent: {
+                    'file.txt': 'newchanged'
+                },
+                patterns: [{
+                    from: 'file.txt',
+                    transform: function(content, absoluteFrom) {
+                        expect(absoluteFrom).to.equal(path.join(HELPER_DIR, 'file.txt'));
+                        return content + 'changed';
+                    }
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('warns when file not found', (done) => {
+            runEmit({
+                expectedAssetKeys: [],
+                expectedErrors: [
+                    `[copy-webpack-plugin] unable to locate 'nonexistent.txt' at '${HELPER_DIR}${path.sep}nonexistent.txt'`
+                ],
+                patterns: [{
+                    from: 'nonexistent.txt'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('warns when tranform failed', (done) => {
+            runEmit({
+                expectedAssetKeys: [],
+                expectedErrors: [
+                    'a failure happened'
+                ],
+                patterns: [{
+                    from: 'file.txt',
+                    transform: function() {
+                        throw 'a failure happened';
+                    }
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can use an absolute path to move a file to the root directory', (done) => {
+            const absolutePath = path.resolve(HELPER_DIR, 'file.txt');
+
+            runEmit({
+                expectedAssetKeys: [
+                    'file.txt'
+                ],
+                patterns: [{
+                    from: absolutePath
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
         it('can move a file to a new directory without a forward slash', (done) => {
             runEmit({
                 expectedAssetKeys: [
@@ -353,6 +469,45 @@ describe('apply function', () => {
             runEmit({
                 expectedAssetKeys: [
                     'file.txt'
+                ],
+                patterns: [{
+                    from: 'file.txt',
+                    to: BUILD_DIR
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('allows absolute to if outpath is defined with webpack-dev-server', (done) => {
+            runEmit({
+                compiler: new MockCompiler({
+                    outputPath: '/',
+                    devServer: {
+                        outputPath: BUILD_DIR
+                    }
+                }),
+                expectedAssetKeys: [
+                    'file.txt'
+                ],
+                patterns: [{
+                    from: 'file.txt',
+                    to: BUILD_DIR
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('throws an error when output path isn\'t defined with webpack-dev-server', (done) => {
+            runEmit({
+                compiler: new MockCompiler({
+                    outputPath: '/'
+                }),
+                expectedAssetKeys: [],
+                expectedErrors: [
+                    '[copy-webpack-plugin] Using older versions of webpack-dev-server, devServer.outputPath must be ' +
+                    'defined to write to absolute paths'
                 ],
                 patterns: [{
                     from: 'file.txt',
@@ -465,6 +620,34 @@ describe('apply function', () => {
             .catch(done);
         });
 
+        it('can move a file without an extension to a file using a template', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'noextension.newext'
+                ],
+                patterns: [{
+                    from: 'noextension',
+                    to: '[name][ext].newext'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can move a file with a ".bin" extension using a template', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'binextension.bin'
+                ],
+                patterns: [{
+                    from: 'binextension.bin',
+                    to: '[name].[ext]'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
         it('can move a nested file to the root directory', (done) => {
             runEmit({
                 expectedAssetKeys: [
@@ -526,7 +709,9 @@ describe('apply function', () => {
         it('won\'t overwrite a file already in the compilation', (done) => {
             runForce({
                 existingAsset: 'file.txt',
-                expectedAssetContent: 'existing',
+                expectedAssetContent: {
+                    'file.txt': 'existing'
+                },
                 patterns: [{
                     from: 'file.txt'
                 }]
@@ -538,7 +723,9 @@ describe('apply function', () => {
         it('can force overwrite of a file already in the compilation', (done) => {
             runForce({
                 existingAsset: 'file.txt',
-                expectedAssetContent: 'new',
+                expectedAssetContent: {
+                    'file.txt': 'new'
+                },
                 patterns: [{
                     force: true,
                     from: 'file.txt'
@@ -583,14 +770,30 @@ describe('apply function', () => {
         it('ignores files in pattern', (done) => {
             runEmit({
                 expectedAssetKeys: [
+                    'binextension.bin',
                     'directory/directoryfile.txt',
-                    'directory/nested/nestedfile.txt'
+                    'directory/nested/nestedfile.txt',
+                    'noextension'
                 ],
                 patterns: [{
                     from: '**/*',
                     ignore: [
                         'file.*'
                     ]
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('allows pattern to contain name, hash or ext', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directory/directoryfile-22af64.txt'
+                ],
+                patterns: [{
+                    from: 'directory/directoryfile.txt',
+                    to: 'directory/[name]-[hash:6].[ext]'
                 }]
             })
             .then(done)
@@ -608,6 +811,20 @@ describe('apply function', () => {
                 ],
                 patterns: [{
                     from: 'directory'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('warns when directory not found', (done) => {
+            runEmit({
+                expectedAssetKeys: [],
+                expectedErrors: [
+                    `[copy-webpack-plugin] unable to locate 'nonexistent' at '${HELPER_DIR}${path.sep}nonexistent'`
+                ],
+                patterns: [{
+                    from: 'nonexistent'
                 }]
             })
             .then(done)
@@ -741,7 +958,9 @@ describe('apply function', () => {
         it('won\'t overwrite a file already in the compilation', (done) => {
             runForce({
                 existingAsset: 'directoryfile.txt',
-                expectedAssetContent: 'existing',
+                expectedAssetContent: {
+                    'directoryfile.txt': 'existing'
+                },
                 patterns: [{
                     from: 'directory'
                 }]
@@ -753,7 +972,9 @@ describe('apply function', () => {
         it('can force overwrite of a file already in the compilation', (done) => {
             runForce({
                 existingAsset: 'directoryfile.txt',
-                expectedAssetContent: 'new',
+                expectedAssetContent: {
+                    'directoryfile.txt': 'new'
+                },
                 patterns: [{
                     force: true,
                     from: 'directory'
@@ -809,6 +1030,22 @@ describe('apply function', () => {
                 },
                 patterns: [{
                     from: 'directory'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can move multiple files to a non-root directory with name, hash and ext', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'nested/.dottedfile-79d39f',
+                    'nested/directoryfile-22af64.txt',
+                    'nested/nested/nestedfile-d41d8c.txt'
+                ],
+                patterns: [{
+                    from: 'directory',
+                    to: 'nested/[path][name]-[hash:6].[ext]'
                 }]
             })
             .then(done)
@@ -878,9 +1115,11 @@ describe('apply function', () => {
             it('ignores files that start with a dot', (done) => {
                 runEmit({
                     expectedAssetKeys: [
+                        'binextension.bin',
                         'file.txt',
                         'directory/directoryfile.txt',
-                        'directory/nested/nestedfile.txt'
+                        'directory/nested/nestedfile.txt',
+                        'noextension'
                     ],
                     options: {
                         ignore: [
@@ -901,9 +1140,10 @@ describe('apply function', () => {
                         'directory/.dottedfile'
                     ],
                     options: {
-                        ignore: [
-                            '**/*'
-                        ]
+                        ignore: [{
+                            dot: false,
+                            glob: '**/*'
+                        }]
                     },
                     patterns: [{
                         from: '.'
@@ -917,10 +1157,7 @@ describe('apply function', () => {
                 runEmit({
                     expectedAssetKeys: [],
                     options: {
-                        ignore: [{
-                            dot: true,
-                            glob: '**/*'
-                        }]
+                        ignore: ['**/*']
                     },
                     patterns: [{
                         from: '.'
@@ -934,13 +1171,12 @@ describe('apply function', () => {
             it('ignores nested directory', (done) => {
                 runEmit({
                     expectedAssetKeys: [
-                        'file.txt'
+                        'binextension.bin',
+                        'file.txt',
+                        'noextension'
                     ],
                     options: {
-                        ignore: [{
-                            dot: true,
-                            glob: 'directory/**/*'
-                        }]
+                        ignore: ['directory/**/*']
                     },
                     patterns: [{
                         from: '.'
