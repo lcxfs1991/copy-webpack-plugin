@@ -1,6 +1,6 @@
 {
   "name": "copy-webpack-plugin-hash",
-  "version": "4.0.2",
+  "version": "5.0.0",
   "description": "Copy files and directories in webpack",
   "main": "dist/index.js",
   "repository": {
