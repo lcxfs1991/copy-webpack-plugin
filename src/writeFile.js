@@ -14,7 +14,7 @@ function getChunkName(resourcePath, fileWepackTo) {
         }
     }
 
-    var pattern = fileWepackTo.substr(0, i + 1) + '[name].[ext]'; 
+    var pattern = fileWepackTo.substr(0, i + 1) + '[name]'; 
     return loaderUtils.interpolateName({
         resourcePath: resourcePath
     },pattern, {
