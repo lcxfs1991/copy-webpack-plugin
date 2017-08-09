@@ -70,10 +70,10 @@ export default function writeFile(globalRef, pattern, file) {
                     file.relativeFrom = path.sep + file.relativeFrom;
                 }
 
-                file.webpackTo = loaderUtils.interpolateName(
+                file.webpackTo = path.normalize((loaderUtils.interpolateName(
                     {resourcePath: file.relativeFrom},
                     file.webpackTo,
-                    {content});
+                    {content})));
 
                 file.chunkName = getChunkName(file.relativeFrom, file.webpackTo);
 
