@@ -75,6 +75,8 @@ export default function writeFile(globalRef, pattern, file) {
                     file.webpackTo,
                     {content})));
 
+                file.webpackTo = file.webpackTo.replace('\\', '/');
+
                 file.chunkName = getChunkName(file.relativeFrom, file.webpackTo);
 
                 // Add back removed dots
